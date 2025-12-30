@@ -62,7 +62,11 @@ A API recebe um JSON no seguinte formato:
 }
 ```
 
-O retorno esperado da API é o URL público onde o PDF foi salvo no Storage do Firebase.
+O retorno esperado da API é o URL público onde o PDF foi salvo no Storage do Firebase, no estilo abaixo:
+{
+  "url": "https://storage.googleapis.com/..."
+}
+
 
 Possui três principais ramos, onde todos os PDFs templates necessários já estão armazenados na mesma pasta do index.js, e ele apenas irá decidir qual usar baseado no campo "pdfurl" vindo do JSON, que pode ser certificadoouro.pdf, relatorio.pdf, e por ai vai:
 
