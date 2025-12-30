@@ -62,16 +62,71 @@ A API recebe um JSON no seguinte formato:
 }
 ```
 
-O retorno esperado da API é o URL público onde o PDF foi salvo no Storage do Firebase, no estilo abaixo:
+## Retorno da API
+
+A API retorna um objeto JSON contendo o **URL público** do PDF gerado e armazenado no **Firebase Storage**.
+
+```json
 {
   "url": "https://storage.googleapis.com/..."
 }
+```
+
+# 📄 Gerador de Documentos PDF (API de Automação)
+
+Este projeto é uma API desenvolvida para a geração dinâmica de documentos PDF, incluindo relatórios detalhados, certificados de reconhecimento e termos de adesão. A aplicação processa dados via JSON e utiliza templates pré-definidos para compor os arquivos finais.
+
+---
+
+## 🚀 Estrutura de Templates
+Todos os templates base estão armazenados no diretório raiz junto ao `index.js`. A API decide qual template utilizar através do campo `pdfurl` recebido no corpo da requisição.
+
+**Exemplos de templates:**
+* `certificadoouro.pdf`
+* `relatorio.pdf`
+* `termo_adesao.pdf`
+
+---
+
+## 🛠️ Funcionalidades Principais
+
+### 1. Preenchimento de Relatórios
+O sistema gera relatórios dinâmicos que podem variar de 1 a N páginas, dependendo do volume de dados:
+
+* **Página 1 (Geral):** Sempre gerada. Contém dados consolidados dos plantios do período.
+* **Página 2 (Detalhamento de Plantios):** Gerada apenas se houver plantios.
+    * *Regra de Negócio:* Acomoda até **23 registros** por tabela. Caso ultrapasse, a API calcula automaticamente o número de páginas adicionais ($total / 23$).
+* **Página 3 (Eventos):** Gerada apenas se houver eventos cadastrados. Exibe público, data, local e tipo de atividade.
+
+### 2. Emissão de Certificados
+A lógica de classificação (Ouro, Prata ou Bronze) é processada no Front-end. A API atua como o motor de renderização:
+* Recebe a definição do nível via JSON (`pdfurl`).
+* Mapeia e preenche os campos do template usando `field.setText()`.
+* Garante agilidade na entrega do documento final.
+
+### 3. Termo de Adesão e Assinatura Digital
+Uma função especializada para formalização de documentos:
+* **Assinatura:** Utiliza funções de desenho em PDF para inserir a assinatura manuscrita do usuário sobre o documento.
+* **Integração:** * O arquivo é armazenado no **Firebase Storage**.
+    * Uma cópia é enviada ao **Google Drive**, organizada em uma pasta específica com o nome do usuário signatário.
+
+---
+
+## 📁 Fluxo de Dados
 
 
-Possui três principais ramos, onde todos os PDFs templates necessários já estão armazenados na mesma pasta do index.js, e ele apenas irá decidir qual usar baseado no campo "pdfurl" vindo do JSON, que pode ser certificadoouro.pdf, relatorio.pdf, e por ai vai:
 
-Preenchimento de Relatórios: o PDF da página de relatórios possui 3 páginas por padrão. A primeira possui dados gerais e sempre será gerada, informa dados dos plantios no período selecionado. A segunda página informa local, município, quantidade de mudas e coordenadas dos plantios da região e período selecionado. Essa página acomoda até 23 plantios devido ao tamanho da tabela, então no início da função verificamos quantos plantios temos pra /23 e saber quantas páginas de plantios precisaremos. A página de evento tem comportamento idêntico, mudando apenas os dados (público total, data, local (nome da cidade apenas, não coordenadas) e tipo de atividade (maratona, plantio, etc.). Vale ressaltar que caso não haja plantios no período selecionado, a página de plantios (p.2) não será gerada. A mesma regra se aplica pra a página de eventos.
+1. **Input:** JSON contendo `pdfurl` e os dados dos campos.
+2. **Processamento:** * Seleção do arquivo `.pdf` local.
+    * Cálculo de paginação (para relatórios).
+    * Injeção de texto e imagens (assinaturas).
+3. **Output:** Upload para Storage e Google Drive.
 
-Preenchimento de Certificados: A regra de negócio de verificar se o usuário merece o certificado de ouro, prata ou bronze já é realizada no front-end, então a API só está sendo encarregada de criar o certificado que é passado (O campo pdfurl do JSON recebido será certificadoouro.pdf, certificadoprata.pdf ou certificadobronze.pdf, e assim a API vai escolher corretamente o nivel do certificado). Apenas preenche os campos utilizando a field.setText() e está pronto.
+---
 
-Preenchimento de Termo de Adesão: Para o termo de adesão, existe uma função especial onde a assinatura que o usuário criou será inserida no PDF com a função da biblioteca de desenhar em PDF. Além de inserir os dados do usuário no PDF com field.sexText(), faremos a inserção da assinatura e está pronto. Para o caso do termo de adesão, além de salvar no Storage do Firebase, o arquivo também é salvo no Drive em uma pasta com o nome do usuário que assinou.
+## 🧰 Tecnologias Utilizadas
+* **Node.js** (Ambiente de execução)
+* **Firebase/Google Drive API** (Armazenamento)
+* **PDF-Lib** (ou biblioteca similar utilizada para `field.setText`)
+
+---
