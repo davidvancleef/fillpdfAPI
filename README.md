@@ -1,6 +1,6 @@
 # 📄 fillpdfAPI
 
-API desenvolvida em **Node.js** para **preenchimento automático de PDFs** (relatórios, certificados e termos de adesão) do projeto **Virada Ambiental**.
+API desenvolvida em **Node.js** para **preenchimento automático de PDFs** (relatórios, certificados e termos de adesão) do projeto **Virada Ambiental**. A aplicação processa dados via JSON e utiliza templates pré-definidos para compor os arquivos finais.
 
 A API recebe um **JSON com dados estruturados**, seleciona dinamicamente o **template de PDF correto**, realiza o preenchimento dos campos e **salva o PDF final no Firebase Storage**, retornando um **URL público** para acesso.
 
@@ -71,12 +71,6 @@ A API retorna um objeto JSON contendo o **URL público** do PDF gerado e armazen
   "url": "https://storage.googleapis.com/..."
 }
 ```
-
-# 📄 Gerador de Documentos PDF (API de Automação)
-
-Este projeto é uma API desenvolvida para a geração dinâmica de documentos PDF, incluindo relatórios detalhados, certificados de reconhecimento e termos de adesão. A aplicação processa dados via JSON e utiliza templates pré-definidos para compor os arquivos finais.
-
----
 
 ## 🚀 Estrutura de Templates
 Todos os templates base estão armazenados no diretório raiz junto ao `index.js`. A API decide qual template utilizar através do campo `pdfurl` recebido no corpo da requisição.
