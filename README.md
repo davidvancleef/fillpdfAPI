@@ -89,8 +89,8 @@ O sistema gera relatórios dinâmicos que podem variar de 1 a N páginas, depend
 
 * **Página 1 (Geral):** Sempre gerada. Contém dados consolidados dos plantios do período.
 * **Página 2 (Detalhamento de Plantios):** Gerada apenas se houver plantios.
-    * *Regra de Negócio:* Acomoda até **23 registros** por tabela. Caso ultrapasse, a API calcula automaticamente o número de páginas adicionais ($total / 23$).
-* **Página 3 (Eventos):** Gerada apenas se houver eventos cadastrados. Exibe público, data, local e tipo de atividade.
+    * *Regra de Layout:* Acomoda até **23 registros** por tabela. Caso ultrapasse, a API calcula automaticamente o número de páginas adicionais ($total / 23$).
+* **Página 3 (Detalhamento de Eventos):** Gerada apenas se houver eventos cadastrados. Exibe público, data, local e tipo de atividade. Possui a mesma regra de layout do detalhamento de plantios.
 
 ### 2. Emissão de Certificados
 A lógica de classificação (Ouro, Prata ou Bronze) é processada no Front-end. A API atua como o motor de renderização:
