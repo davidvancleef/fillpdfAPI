@@ -315,22 +315,3 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
     }
   });
 });
-
-exports.deleteUserByAdmin = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    if (req.method === "OPTIONS") {
-      return res.status(204).send("");
-    }
-
-    const { uid } = req.body;
-
-    if (!uid) return res.status(400).send("UID ausente");
-
-    try {
-      await admin.auth().deleteUser(uid);
-      return res.status(200).send({ success: true, message: `Usuário ${uid} deletado com sucesso.` });
-    } catch (err) {
-      return res.status(500).send({ success: false, error: err.message });
-    }
-  });
-});
