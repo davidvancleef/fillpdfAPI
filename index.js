@@ -7,8 +7,7 @@ const admin     = require("firebase-admin");
 admin.initializeApp();
 
 const storage = new Storage();
-const bucketName = ""; //confidencial
-
+const bucketName = "--" // editado por seguranca
 const { google } = require("googleapis");
 const fs = require("fs");
 const os = require("os");
@@ -31,7 +30,7 @@ function sanitizarNome(username) {
 }
 
 async function uploadPdfToDrive(username, pdfBuffer) {
-  const parentFolderId = ""; //confidencial
+  const parentFolderId = "--" // editado por seguranca
 
   const folderMetadata = {
     name: username,
@@ -71,8 +70,6 @@ async function uploadPdfToDrive(username, pdfBuffer) {
   return uploadedFile.data;
 }
 
-
-//funcao usada pra criar pdfs. Eles podem ser do tipo relatorio, certificado ou termo. No caso do relatorio, apenas sao preenchidas as tabelas com os dados do JSON recebido (atraves de passagem de coordenadas x e y do PDF). Para termo, são inseridos os campos e, após, a assinatura no x e y especificado. Para certificados, apenas são preechidos os campos. Caso seja termo, é salvo no Drive, enquanto os outros são salvos apenas no FireStore.
 exports.fillPdf = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     try {
@@ -153,7 +150,11 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
 
       form.flatten();
       
+      // ======= SEÇÃO NOVA: Inserção dos dados de plantios e eventos =======
+      // (Mantida idêntica ao original para garantir integridade)
+
       if (isRelatorio) {
+        // +++ ALTERAÇÃO: Fazer as checagens ANTES de modificar as páginas
         const plantios = camposPreenchimento.plantioslista || {};
         const plantiosKeys = Object.keys(plantios);
         const totalPlantios = plantiosKeys.length;
@@ -164,12 +165,15 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
         const totalEventos = eventosKeys.length;
         const temEventos = totalEventos > 0;
 
+        // Índices das páginas MODELO no PDF original
         const PAGINA_MODELO_PLANTIOS_IDX = 1; // Página 2
         const PAGINA_MODELO_EVENTOS_IDX = 2; // Página 3
 
         const maxPorPaginaPlantios = 23;
         const maxPorPaginaEventos = 23;
 
+        // +++ ALTERAÇÃO: Copiar os templates ANTES de deletar
+        // Copiamos os bytes das páginas que usaremos como modelo
         const [plantiosModeloCopia] = temPlantios 
             ? await pdfDoc.copyPages(pdfDoc, [PAGINA_MODELO_PLANTIOS_IDX]) 
             : [null];
@@ -178,13 +182,16 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
             ? await pdfDoc.copyPages(pdfDoc, [PAGINA_MODELO_EVENTOS_IDX]) 
             : [null];
 
+        // +++ ALTERAÇÃO: Remover AMBOS os modelos originais (começar do final)
         pdfDoc.removePage(PAGINA_MODELO_EVENTOS_IDX);
         pdfDoc.removePage(PAGINA_MODELO_PLANTIOS_IDX);
+        // Agora o documento só tem a Capa (índice 0)
 
         const font = await pdfDoc.embedFont('Helvetica');
         let paginasExtrasPlantio = 0;
-        let indiceInsercaoAtual = 1;
+        let indiceInsercaoAtual = 1; // Começa a inserir depois da capa (índice 0)
 
+        // --- 1. Lógica de Plantios ---
         if (temPlantios) {
           try {
             paginasExtrasPlantio = Math.ceil(totalPlantios / maxPorPaginaPlantios);
@@ -192,33 +199,37 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
 
             const paginasPlantioAdicionadas = [];
             for (let i = 0; i < paginasExtrasPlantio; i++) {
+              // Adiciona a cópia original na primeira vez, e cópias da cópia nas seguintes
               const paginaParaAdicionar = (i === 0) 
                   ? plantiosModeloCopia 
-                  : await pdfDoc.copyPages(pdfDoc, [pdfDoc.getPageCount() - 1]).then(p => p[0]);            
+                  : await pdfDoc.copyPages(pdfDoc, [pdfDoc.getPageCount() - 1]).then(p => p[0]); // Copia a última pág add
+              
+              // +++ ALTERAÇÃO: Adiciona a página e a salva para desenhar
               const novaPagina = pdfDoc.insertPage(indiceInsercaoAtual + i, paginaParaAdicionar);
               paginasPlantioAdicionadas.push(novaPagina);
             }
 
+            // Desenhar nos campos de plantio
             const startX = 15;
             const startY = 673;
-            const lineHeight = 28;
+            const lineHeight = 27;
 
             for (let i = 0; i < totalPlantios; i++) {
               const paginaIndex = Math.floor(i / maxPorPaginaPlantios);
               const linhaIndex = i % maxPorPaginaPlantios;
               const y = startY - linhaIndex * lineHeight;
 
-              const pg = paginasPlantioAdicionadas[paginaIndex];
+              const pg = paginasPlantioAdicionadas[paginaIndex]; // Pega a página correta
               const { data, local, coords, nmudas } = plantios[plantiosKeys[i]];
 
               pg.drawText(`${plantiosKeys[i]}`, { x: startX, y, size: 10, font });
-              pg.drawText(`${coords || ""}`, { x: startX + 33, y, size: 8.5, font });
+              pg.drawText(`${coords || ""}`, { x: startX + 31, y, size: 8.25, font });
               pg.drawText(`${data || ""}`, { x: startX + 205, y, size: 10, font });
               pg.drawText(`${local || ""}`, { x: startX + 273, y, size: 10, font });
               pg.drawText(`${nmudas || ""}`, { x: startX + 493, y, size: 10, font });
             }
             console.log("✅ Campos de plantios desenhados com sucesso.");
-            indiceInsercaoAtual += paginasExtrasPlantio;
+            indiceInsercaoAtual += paginasExtrasPlantio; // Atualiza o índice para os eventos
           } catch (err) {
             console.error("💥 Erro ao desenhar os dados de plantios:", err);
           }
@@ -226,6 +237,7 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
             console.log("ℹ️ Nenhum plantio. Página de plantios não adicionada.");
         }
         
+        // --- 2. Lógica de Eventos ---
         if (temEventos) {
           try {
             const paginasExtrasEventos = Math.ceil(totalEventos / maxPorPaginaEventos);
@@ -235,11 +247,14 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
             for (let i = 0; i < paginasExtrasEventos; i++) {
               const paginaParaAdicionar = (i === 0)
                 ? eventosModeloCopia
-                : await pdfDoc.copyPages(pdfDoc, [pdfDoc.getPageCount() - 1]).then(p => p[0]);
+                : await pdfDoc.copyPages(pdfDoc, [pdfDoc.getPageCount() - 1]).then(p => p[0]); // Copia a última pág add
+              
+              // +++ ALTERAÇÃO: Adiciona a página no índice correto
               const novaPagina = pdfDoc.insertPage(indiceInsercaoAtual + i, paginaParaAdicionar);
               paginasEventosAdicionadas.push(novaPagina);
             }
 
+            // Desenhar nos campos de eventos
             const startX = 15;
             const startY = 673;
             const lineHeight = 28;
@@ -249,7 +264,7 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
               const linhaIndex = i % maxPorPaginaEventos;
               const y = startY - linhaIndex * lineHeight;
 
-              const pg = paginasEventosAdicionadas[paginaIndex];
+              const pg = paginasEventosAdicionadas[paginaIndex]; // Pega a página correta
               const { tipo, data, local, publicototal } = eventos[eventosKeys[i]];
 
               pg.drawText(`${eventosKeys[i]}`, { x: startX, y, size: 10, font });
@@ -266,6 +281,7 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
              console.log("ℹ️ Nenhum evento. Página de eventos não adicionada.");
         }
       }
+      // ======= FIM DAS SEÇÕES NOVAS =======
 
       const filledPdfBytes = await pdfDoc.save();
 
@@ -296,6 +312,25 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
     } catch (err) {
       console.error("💥 Erro inesperado:", err);
       res.status(500).json({ error: "Erro ao preencher o PDF" });
+    }
+  });
+});
+
+exports.deleteUserByAdmin = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    if (req.method === "OPTIONS") {
+      return res.status(204).send("");
+    }
+
+    const { uid } = req.body;
+
+    if (!uid) return res.status(400).send("UID ausente");
+
+    try {
+      await admin.auth().deleteUser(uid);
+      return res.status(200).send({ success: true, message: `Usuário ${uid} deletado com sucesso.` });
+    } catch (err) {
+      return res.status(500).send({ success: false, error: err.message });
     }
   });
 });
