@@ -19,7 +19,7 @@ A API recebe um **JSON com dados estruturados**, seleciona dinamicamente o **tem
 
 ## 📥 Entrada da API
 
-A API recebe um JSON no seguinte formato:
+A API recebe um JSON no seguinte formato (Caso campos desnecessários estejam vazios, são ignorados):
 
 ```json
 {
