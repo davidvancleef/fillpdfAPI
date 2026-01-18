@@ -1,13 +1,13 @@
 const functions = require("firebase-functions");
-const { PDFDocument } = require("pdf-lib");
+const { PDFDocument} = require("pdf-lib");
 const { Storage } = require("@google-cloud/storage");
 const { v4: uuidv4 } = require("uuid");
 const cors = require("cors")({ origin: true });
-const admin     = require("firebase-admin");
+const admin = require("firebase-admin");
 admin.initializeApp();
 
 const storage = new Storage();
-const bucketName = "--" // editado por seguranca
+const bucketName = "virada-1ezloo.firebasestorage.app";
 const { google } = require("googleapis");
 const fs = require("fs");
 const os = require("os");
@@ -20,6 +20,7 @@ const auth = new google.auth.GoogleAuth({
 
 const drive = google.drive({ version: "v3", auth });
 
+// Sanitiza nome antes de salvar no Firestore. Unico que nao segue isso eh o relatorio, pois ele deve ser salvo com nome do token gerado e uppercase eh essencial.
 function sanitizarNome(username) {
   return username
     .normalize("NFD")
@@ -29,8 +30,9 @@ function sanitizarNome(username) {
     .toLowerCase();
 }
 
+// funcao de upar o termo pro drive.
 async function uploadPdfToDrive(username, pdfBuffer) {
-  const parentFolderId = "--" // editado por seguranca
+  const parentFolderId = "1UEHPWutpfauEQe-qxEUvXCesEaI6YB73"; 
 
   const folderMetadata = {
     name: username,
@@ -70,46 +72,55 @@ async function uploadPdfToDrive(username, pdfBuffer) {
   return uploadedFile.data;
 }
 
+// funcao principal pra preencher pdfs com varias subsecoes/casos: termo de adesao, relatorio, certificado e termo de proprietario.
 exports.fillPdf = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     try {
-      const { pdfUrl, campos, ...outrosCampos } = req.body;
+      const { pdfUrl, campos, ...outrosCampos } = req.body; // pega JSON vindo do front-end
       const camposPreenchimento = campos || outrosCampos;
 
+      //caso nao chegue qual pdf da pasta ira usar ou nao tenha nenhum campo pra ser colocado nele, retorna erro 400.
       if (!pdfUrl || Object.keys(camposPreenchimento).length === 0) {
         console.error("Faltando pdfUrl ou campos para preenchimento");
         return res.status(400).json({ error: "pdfUrl e campos são obrigatórios" });
       }
 
-      // 1. Identificação dos tipos
+      //no JSON, tirando o caso do termo de adesao, todos vem com um campo "tipo" que ira definir qual sera o doc.
       const isRelatorio = camposPreenchimento.tipo === "relatorio";
-      const isCertificado = camposPreenchimento.tipo === "certificado"; // NOVO
+      const isCertificado = camposPreenchimento.tipo === "certificado";
+      const isTermoProprietario = camposPreenchimento.tipo === "termoproprietario";
 
+      //caso seja relatorio, usa o token gerado. caso seja outro tipo, usa o nome de usuario. (Isso se deve ao fato de que a relacao usuario-relatório eh 1-N, enquanto certificado e termo eh 1-1. O termo de proprietario tambem eh 1-N, mas para ele foi escolhido o uso do horario pra salvar o arquivo, ao inves de tokens.)
       const nomeBase = isRelatorio
         ? camposPreenchimento.idrelatorio || `relatorio1`
         : req.body.username || "anonimo";
       const nomeSanitizado = sanitizarNome(nomeBase);
 
-      // 2. Definição do Caminho do Arquivo (MODIFICADO para incluir certificados)
+      // modo como cada arquivo sera salvo no firebase.
       let fileName;
       if (isRelatorio) {
         fileName = `relatorios/${nomeBase}.pdf`;
       } else if (isCertificado) {
         fileName = `certificados/${nomeSanitizado}.pdf`;
-      } else {
+      } else if (isTermoProprietario){
+        fileName = `termosProprietarios/${nomeSanitizado}/termo${Date.now()}.pdf`;
+      } else { //caso mude no front end o tipo dos termos pra termo, pode ser trocado por ifelse e colocar um else pra erro de nao ter tipo no payload.
         fileName = `termos/${nomeSanitizado}/termo.pdf`;
       }
 
+      //leitura do pdf pela api.
       const templatePath = path.join(__dirname, "templates", pdfUrl);
       const pdfBytes = fs.readFileSync(templatePath);
       console.log("📄 Template carregado localmente:", templatePath);
 
+      //procura campos de formulario no pdf.
       const pdfDoc = await PDFDocument.load(pdfBytes);
       const form = pdfDoc.getForm();
       const fields = form.getFields();
       console.log(`✅ Encontrados ${fields.length} campos no formulário`);
       fields.forEach(f => console.log("➡️ Campo:", f.getName()));
 
+      //tenta preencher campos do pdf, comparando NOME do campo de formulario com o nome da variavel vinda no JSON. basicamente pdf.nomeinstituicao = camposPreenchimento.nomeinstituicao
       for (const [campo, valor] of Object.entries(camposPreenchimento)) {
         try {
           const field = form.getTextField(campo);
@@ -120,7 +131,7 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
         }
       }
 
-      // Assinatura (caso não seja relatório E NEM certificado)
+      // faz insercao de assinatura nos documentos que possuem link da assinatura no JSON (idealmente apenas termo de adesao e termo proprietario)
       if (!isRelatorio && !isCertificado && camposPreenchimento.assinatura) {
         try {
           console.log("🔋 Baixando imagem da assinatura...");
@@ -129,9 +140,10 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
           const imgBytes = imgResponse.data;
 
           let assinaturaImage;
+          //tenta pegar a assinatura em png, caso nao funcione, jpg.
             try {
               assinaturaImage = await pdfDoc.embedPng(imgBytes);
-            } catch {
+            } catch{
               assinaturaImage = await pdfDoc.embedJpg(imgBytes);
             }
           const page = pdfDoc.getPages()[0];
@@ -150,8 +162,6 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
 
       form.flatten();
       
-      // ======= SEÇÃO NOVA: Inserção dos dados de plantios e eventos =======
-      // (Mantida idêntica ao original para garantir integridade)
 
       if (isRelatorio) {
         // +++ ALTERAÇÃO: Fazer as checagens ANTES de modificar as páginas
@@ -195,7 +205,7 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
         if (temPlantios) {
           try {
             paginasExtrasPlantio = Math.ceil(totalPlantios / maxPorPaginaPlantios);
-            console.log(`🪴 Total de plantios: ${totalPlantios}, páginas necessárias: ${paginasExtrasPlantio}`);
+            console.log(`Total de plantios: ${totalPlantios}, páginas necessárias: ${paginasExtrasPlantio}`);
 
             const paginasPlantioAdicionadas = [];
             for (let i = 0; i < paginasExtrasPlantio; i++) {
@@ -228,20 +238,20 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
               pg.drawText(`${local || ""}`, { x: startX + 273, y, size: 10, font });
               pg.drawText(`${nmudas || ""}`, { x: startX + 493, y, size: 10, font });
             }
-            console.log("✅ Campos de plantios desenhados com sucesso.");
+            console.log("Campos de plantios desenhados com sucesso.");
             indiceInsercaoAtual += paginasExtrasPlantio; // Atualiza o índice para os eventos
           } catch (err) {
-            console.error("💥 Erro ao desenhar os dados de plantios:", err);
+            console.error("Erro ao desenhar os dados de plantios:", err);
           }
         } else {
-            console.log("ℹ️ Nenhum plantio. Página de plantios não adicionada.");
+            console.log("ℹNenhum plantio. Página de plantios não adicionada.");
         }
         
         // --- 2. Lógica de Eventos ---
         if (temEventos) {
           try {
             const paginasExtrasEventos = Math.ceil(totalEventos / maxPorPaginaEventos);
-            console.log(`🎉 Total de eventos: ${totalEventos}, páginas necessárias: ${paginasExtrasEventos}`);
+            console.log(`Total de eventos: ${totalEventos}, páginas necessárias: ${paginasExtrasEventos}`);
 
             const paginasEventosAdicionadas = [];
             for (let i = 0; i < paginasExtrasEventos; i++) {
@@ -257,7 +267,7 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
             // Desenhar nos campos de eventos
             const startX = 15;
             const startY = 673;
-            const lineHeight = 28;
+            const lineHeight = 27;
 
             for (let i = 0; i < totalEventos; i++) {
               const paginaIndex = Math.floor(i / maxPorPaginaEventos);
@@ -302,10 +312,10 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
       console.log("✅ PDF salvo com sucesso:", pdfUrlDownload);
 
       // Upload para Drive: Apenas se NÃO for relatório E NEM certificado
-      if (!isRelatorio && !isCertificado) {
+      if (!isRelatorio && !isCertificado &&!isTermoProprietario) {
         await uploadPdfToDrive(nomeSanitizado, filledPdfBytes); 
       } else {
-        console.log("📄 Relatório ou Certificado detectado — não será enviado ao Google Drive.");
+        console.log("📄 Relatório, Certificado ou Termo de Proprietario detectado — não será enviado ao Google Drive.");
       }
 
       res.json({ pdfUrl: pdfUrlDownload });
