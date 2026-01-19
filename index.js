@@ -7,7 +7,7 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 
 const storage = new Storage();
-const bucketName = "virada-1ezloo.firebasestorage.app";
+const bucketName = "--"; //editado
 const { google } = require("googleapis");
 const fs = require("fs");
 const os = require("os");
@@ -32,7 +32,7 @@ function sanitizarNome(username) {
 
 // funcao de upar o termo pro drive.
 async function uploadPdfToDrive(username, pdfBuffer) {
-  const parentFolderId = "1UEHPWutpfauEQe-qxEUvXCesEaI6YB73"; 
+  const parentFolderId = "--"// editado; 
 
   const folderMetadata = {
     name: username,
@@ -140,7 +140,7 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
           const imgBytes = imgResponse.data;
 
           let assinaturaImage;
-          //tenta pegar a assinatura em png, caso nao funcione, jpg.
+          //tenta pegar a assinatura em png, caso nao funcione, jpg. (pode ser alterado futuramente pra independente do tipo, converter pra PNG usando biblioteca sharp)
             try {
               assinaturaImage = await pdfDoc.embedPng(imgBytes);
             } catch{
@@ -148,6 +148,7 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
             }
           const page = pdfDoc.getPages()[0];
 
+          //usa parametros X, Y, altura e largura da assinatura vindos no JSON
           const x = parseFloat(req.body.assinaturaX) || 120;
           const y = parseFloat(req.body.assinaturaY) || 145;
           const width = parseFloat(req.body.assinaturaWidth) || 160;
@@ -164,7 +165,7 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
       
 
       if (isRelatorio) {
-        // +++ ALTERAÇÃO: Fazer as checagens ANTES de modificar as páginas
+        // faz as checagens ANTES de modificar as páginas
         const plantios = camposPreenchimento.plantioslista || {};
         const plantiosKeys = Object.keys(plantios);
         const totalPlantios = plantiosKeys.length;
@@ -182,7 +183,6 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
         const maxPorPaginaPlantios = 23;
         const maxPorPaginaEventos = 23;
 
-        // +++ ALTERAÇÃO: Copiar os templates ANTES de deletar
         // Copiamos os bytes das páginas que usaremos como modelo
         const [plantiosModeloCopia] = temPlantios 
             ? await pdfDoc.copyPages(pdfDoc, [PAGINA_MODELO_PLANTIOS_IDX]) 
@@ -192,7 +192,7 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
             ? await pdfDoc.copyPages(pdfDoc, [PAGINA_MODELO_EVENTOS_IDX]) 
             : [null];
 
-        // +++ ALTERAÇÃO: Remover AMBOS os modelos originais (começar do final)
+        // Remover AMBOS os modelos originais (começar do final)
         pdfDoc.removePage(PAGINA_MODELO_EVENTOS_IDX);
         pdfDoc.removePage(PAGINA_MODELO_PLANTIOS_IDX);
         // Agora o documento só tem a Capa (índice 0)
@@ -291,10 +291,9 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
              console.log("ℹ️ Nenhum evento. Página de eventos não adicionada.");
         }
       }
-      // ======= FIM DAS SEÇÕES NOVAS =======
+
 
       const filledPdfBytes = await pdfDoc.save();
-
       const downloadToken = uuidv4();
       const file = storage.bucket(bucketName).file(fileName);
 
@@ -308,16 +307,18 @@ exports.fillPdf = functions.https.onRequest((req, res) => {
         resumable: false
       });
 
+      //link do pdf que vai ser retornado pela funcao fillpdf
       const pdfUrlDownload = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(fileName)}?alt=media&token=${downloadToken}`;
       console.log("✅ PDF salvo com sucesso:", pdfUrlDownload);
 
-      // Upload para Drive: Apenas se NÃO for relatório E NEM certificado
+      // Upload para Drive: Apenas se NÃO for relatório, certificado ou proprietário (ou seja, apenas termos de adesao)
       if (!isRelatorio && !isCertificado &&!isTermoProprietario) {
         await uploadPdfToDrive(nomeSanitizado, filledPdfBytes); 
       } else {
         console.log("📄 Relatório, Certificado ou Termo de Proprietario detectado — não será enviado ao Google Drive.");
       }
-
+      
+      // retorna url do pdf criado para o frontend
       res.json({ pdfUrl: pdfUrlDownload });
     } catch (err) {
       console.error("💥 Erro inesperado:", err);
