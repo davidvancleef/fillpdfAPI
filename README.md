@@ -1,23 +1,23 @@
-# 📄 fillpdfAPI
+# fillpdfAPI
 
-API desenvolvida em **Node.js** para **preenchimento automático de PDFs** (relatórios, certificados e termos de adesão) do projeto **Virada Ambiental**. A aplicação processa dados via JSON e utiliza templates pré-definidos para compor os arquivos finais.
+API desenvolvida em **Node.js** para preenchimento automático de PDFs (relatórios, certificados e termos de adesão) do projeto **Virada Ambiental**. A aplicação processa dados via JSON e utiliza templates pré-definidos para compor os arquivos finais.
 
-A API recebe um **JSON com dados estruturados**, seleciona dinamicamente o **template de PDF correto**, realiza o preenchimento dos campos e **salva o PDF final no Firebase Storage**, retornando um **URL público** para acesso.
+A API recebe um JSON com dados estruturados, seleciona dinamicamente o template de PDF correto, realiza o preenchimento dos campos e salva o PDF final no Firebase Storage, retornando um URL público para acesso.
 
 ---
 
-## 🚀 Funcionalidades
+##  Funcionalidades
 
 - Preenchimento dinâmico de PDFs a partir de templates
-- Geração automática de múltiplas páginas conforme volume de dados
-- Inserção de **assinatura desenhada no PDF**
-- Integração com **Firebase Storage**
-- Integração com **Google Drive** (caso específico)
+- Geração automática de múltiplas páginas conforme volume de dados (caso de relatórios)
+- Inserção de assinatura desenhada no PDF
+- Integração com Firebase Storage
+- Integração com Google Drive (caso específico dos termos de adesão)
 - Retorno de URL público do arquivo final
 
 ---
 
-## 📥 Entrada da API
+## Entrada da API
 
 A API recebe um JSON no seguinte formato (Caso campos desnecessários estejam vazios, são ignorados):
 
@@ -72,7 +72,7 @@ A API retorna um objeto JSON contendo o **URL público** do PDF gerado e armazen
 }
 ```
 
-## 🚀 Estrutura de Templates
+## Estrutura de Templates
 Todos os templates base estão armazenados no diretório raiz junto ao `index.js`. A API decide qual template utilizar através do campo `pdfurl` recebido no corpo da requisição.
 
 **Exemplos de templates:**
@@ -106,7 +106,7 @@ Uma função especializada para formalização de documentos:
 
 ---
 
-## 📁 Fluxo de Dados
+## Fluxo de Dados
 
 
 
@@ -118,7 +118,7 @@ Uma função especializada para formalização de documentos:
 
 ---
 
-## 🧰 Tecnologias Utilizadas
+## Tecnologias Utilizadas
 * **Node.js** (Ambiente de execução)
 * **Firebase/Google Drive API** (Armazenamento)
 * **PDF-Lib** (ou biblioteca similar utilizada para `field.setText`)
